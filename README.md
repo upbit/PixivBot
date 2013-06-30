@@ -1,4 +1,4 @@
-PixivBot
+PixivBot for Tencent Weibo
 ========
 
-Pixiv hot illust timing push for Tencent Weibo
+[ÄÚ²â°æ£¬ÇëÎğÏÂÔØ](https://github.com/upbit/PixivBot/wiki)
