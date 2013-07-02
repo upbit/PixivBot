@@ -53,6 +53,7 @@ class IllustHelper():
 
     def InsertOrUpdateIllust(self, illust_obj):
         """ 插入或更新一个illust的信息 """
+        insert_new = 1
         db_illust = self._GetIllust(illust_obj.id)
         if (not db_illust):
             db_illust = IllustDb()
@@ -70,21 +71,14 @@ class IllustHelper():
             db_illust.tweet_id = None
             db_illust.source = self.rank_source
         else: # update illust
-            updated = 0
-            if (db_illust.feedback < illust_obj.feedback):
-                db_illust.feedback = illust_obj.feedback
-                updated += 1
-            if (db_illust.point < illust_obj.point):
-                db_illust.point = illust_obj.point
-                updated += 1
-            if (db_illust.views < illust_obj.views):
-                db_illust.views = illust_obj.views
-                updated += 1
-            if (updated > 0):
-                db_illust.source = self.rank_source             # 记录分值最高的来源
-            logging.debug("exist, update illust %d data(%d)" % (db_illust.illust_id, updated))
+            if (db_illust.feedback < illust_obj.feedback): db_illust.feedback = illust_obj.feedback
+            if (db_illust.point < illust_obj.point): db_illust.point = illust_obj.point
+            if (db_illust.views < illust_obj.views): db_illust.views = illust_obj.views
+            insert_new = 0
+            logging.debug("exist, update illust %d" % (db_illust.illust_id))
 
-        return db_illust.put()
+        db_illust.put()
+        return insert_new
 
     def UpdateIllustTweetId(self, illust_id, tweet_id):
         """ 更新Illust的微博消息id，tweet_id=0表示屏蔽 """

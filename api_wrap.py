@@ -68,19 +68,25 @@ def retweet_illust_by_id(illust_id, tag_name="", source="all"):
     api = init_tweibo_api()
     pixiv_api = init_pixiv_api()
 
-    illust = pixiv_api.get_illust(illust_id)
+    try:
+        illust = pixiv_api.get_illust(illust_id)
+    except Exception, e:
+        logging.warning("pixiv_api.get_illust(%d) error: %s, try" % illust_id)
+        illust = pixiv_api.get_illust(illust_id)
+
     try:
         # 先尝试上传原始图片
         upload_illust = api.upload.t__upload_pic(format="json", pic_type=2, pic=download_illust(illust))
     except Exception, e: # [To-Do] 加入失败原因判断
         # 如果失败(一般是图片太大)，尝试上传移动端的图片
-        logging.error("api.upload.t__upload_pic() error: %s" % e)
+        logging.error("api.upload.t__upload_pic() error: %s, try upload mobile pic" % e)
         upload_illust = api.upload.t__upload_pic(format="json", pic_type=2, pic=download_illust(illust, mobile=True))
     
+    #illust_tag = ", ".join(illust.tags.split(" "))
     if (tag_name != ""):
-        content_text = "#%s# [%s] / [%s] illust_id=%s" % (tag_name, illust.title, illust.authorName, illust.id)
+        content_text = "#%s# [%s] / [%s] illust_id=%s %s" % (tag_name, illust.title, illust.authorName, illust.id, illust.url)
     else:
-        content_text = "[%s] / [%s] illust_id=%s" % (illust.title, illust.authorName, illust.id)
+        content_text = "[%s] / [%s] illust_id=%s %s" % (illust.title, illust.authorName, illust.id, illust.url)
 
     logging.debug("send tweet: '%s', imgurl=%s" % (content_text, upload_illust.data.imgurl))
     tweet = api.post.t__add_pic_url(format="json", content=content_text, pic_url=upload_illust.data.imgurl, clientip="10.0.0.1")
@@ -108,8 +114,10 @@ def crawl_ranking_to_db(content, mode):
     pixiv_api = init_pixiv_api()
     illust_db = IllustHelper(content)
 
-    # 抓取排行榜直到拉取到的图片point小于RANK_POINT_LIMIT
     crawl_count = 0
+    new_count = 0
+
+    # 抓取排行榜直到拉取到的图片point小于RANK_POINT_LIMIT
     page = 1
     page_limit = RANK_PAGE_LIMIT
     last_point = RANK_POINT_LIMIT * 10
@@ -122,7 +130,7 @@ def crawl_ranking_to_db(content, mode):
                 page_limit = 0     # 停止翻页并退出抓取过程
                 break
 
-            illust_db.InsertOrUpdateIllust(image)
+            new_count += illust_db.InsertOrUpdateIllust(image)
             crawl_count += 1
 
         if (page_limit > 0):
@@ -133,15 +141,17 @@ def crawl_ranking_to_db(content, mode):
         else:
             break       # 退出爬取过程
 
-    return crawl_count, page
+    return new_count, crawl_count, page
 
 def crawl_ranking_log_to_db(log_date, mode):
     """ 抓取历史排行榜的作品到DB """
     pixiv_api = init_pixiv_api()
     illust_db = IllustHelper("log_%s" % mode)
 
-    # 抓取排行榜直到拉取到的图片point小于RANK_POINT_LIMIT
     crawl_count = 0
+    new_count = 0
+
+    # 抓取排行榜直到拉取到的图片point小于RANK_POINT_LIMIT
     page = 1
     page_limit = RANK_PAGE_LIMIT
     last_point = RANK_POINT_LIMIT * 10
@@ -154,7 +164,7 @@ def crawl_ranking_log_to_db(log_date, mode):
                 page_limit = 0     # 停止翻页并退出抓取过程
                 break
 
-            illust_db.InsertOrUpdateIllust(image)
+            new_count += illust_db.InsertOrUpdateIllust(image)
             crawl_count += 1
 
         if (page_limit > 0):
@@ -165,4 +175,4 @@ def crawl_ranking_log_to_db(log_date, mode):
         else:
             break       # 退出爬取过程
 
-    return crawl_count, page
+    return new_count, crawl_count, page

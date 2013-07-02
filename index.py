@@ -21,6 +21,8 @@ JINJA_ENVIRONMENT = jinja2.Environment(autoescape=True, extensions=['jinja2.ext.
 reload(sys)
 sys.setdefaultencoding('utf8')
 
+logging.getLogger().setLevel(logging.INFO)
+
 # jinja2 template tests function
 def valid_tweetid(tweet_id):
     if (tweet_id != None) and (tweet_id != "0"):
@@ -59,7 +61,7 @@ class ShowLocalRanking(webapp2.RequestHandler):
 
     illust_db = IllustHelper("all")
     if (rank_mode == "unpub"):
-        rank_list = illust_db.GetUnpubIllustsRank(order_by="point", offset=page*15, limit_num=15)
+        rank_list = illust_db.GetUnpubIllustsRank(order_by="point", offset=page*30, limit_num=30)
         template_values = { 'ranking': rank_list, 'ranking_uri': "ranking?", 'page': page }
     else:       # 显示所有发表过的内容
         rank_list = illust_db.GetLocalIllustsRank(order_by="point", offset=page*30, limit_num=30)
@@ -96,7 +98,7 @@ class DisableIllustById(webapp2.RequestHandler):
     try:
         if (self.request.get('illust_id') != ""):
             illust_id = string.atoi(self.request.get('illust_id'))
-            logging.info("RetweetIllustById(): illust_id=%d" % (illust_id))
+            logging.info("DisableIllustById(): illust_id=%d" % (illust_id))
         else:
             logging.warn("illust_id missing" % (e))
             return
@@ -124,9 +126,9 @@ class CrawlRankingToDb(webapp2.RequestHandler):
         self.response.out.write('Invalid Input: %s' % e)
         return
 
-    crawl_count, page = crawl_ranking_to_db(content, mode)
-    logging.debug("CrawlRankingToDb(): get %d illusts (%d pages) from ranking(%s)" % (crawl_count, page, content))
-    self.response.out.write("%d %d" % (crawl_count, page))
+    new_count, crawl_count, page = crawl_ranking_to_db(content, mode)
+    logging.debug("CrawlRankingToDb(): get %d/%d illusts (%d pages) from ranking(%s)" % (new_count, crawl_count, page, content))
+    self.response.out.write("%d/%d %d" % (new_count, crawl_count, page))
 
 # /crawl_ranking_log
 class CrawlRankingLogToDb(webapp2.RequestHandler):
@@ -153,9 +155,9 @@ class CrawlRankingLogToDb(webapp2.RequestHandler):
         return
 
     log_date = date(year, month, day)
-    crawl_count, page = crawl_ranking_log_to_db(log_date, mode)
-    logging.debug("CrawlRankingLogToDb(): get %d illusts (%d pages) from ranking_log(%s, mode=%s)" % (crawl_count, page, log_date, mode))
-    self.response.out.write("%d %d" % (crawl_count, page))
+    new_count, crawl_count, page = crawl_ranking_log_to_db(log_date, mode)
+    logging.debug("CrawlRankingLogToDb(): get %d/%d illusts (%d pages) from ranking_log(%s, mode=%s)" % (new_count, crawl_count, page, log_date, mode))
+    self.response.out.write("%d/%d %d" % (new_count, crawl_count, page))
 
 # KEY_CRONJOB - 定时任务入口，触发爬取和发表
 class CronJobMain(webapp2.RequestHandler):
@@ -178,19 +180,19 @@ class CronJobMain(webapp2.RequestHandler):
     ts_min = now_date.time().minute / 10
 
     # 8:00 ~ 22:59 是工作时间，不满足工作时间的直接退出
-    if (ts_hour < 8) or ((ts_hour > 23)):
+    if (ts_hour < 8):   # 0-7点直接过滤
         return
 
-    # 每天晚上23:30点，抓取当天的日榜数据
-    if (ts_hour == 23) and (ts_min == 3):
-        crawl_count, page = crawl_ranking_to_db("all", "day")
-        logging.info("crawl_ranking_to_db() success! get %d (%d pages) new illusts" % (crawl_count, page))
+    # 每天晚上23:50点，抓取当天的日榜数据
+    if (ts_hour == 23) and (ts_min == 5):
+        new_count, crawl_count, page = crawl_ranking_to_db("all", "day")
+        logging.info("crawl_ranking_to_db() success! get %d/%d (%d pages) illusts" % (new_count, crawl_count, page))
+        return
 
-    # 每小时的 0, 20, 40 分，推送一张评分最高的图片
-    if (ts_min in [0, 2, 4]):
+    # 除了23点，其余的每小时 0, 20, 40 分，推送一张评分最高的图片
+    if (ts_hour != 23) and (ts_min in [0, 2, 4]):
         illust, tweet = retweet_top_illust()
         logging.info("retweet illust_id=%d [%s] success, tweet_id=%s" % (illust.id, illust.title, tweet.data.id))
-
 
 app = webapp2.WSGIApplication([('/', MainPage),
                                 ('/ranking', ShowLocalRanking),
