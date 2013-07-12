@@ -179,20 +179,36 @@ class CronJobMain(webapp2.RequestHandler):
     ts_hour = now_date.time().hour
     ts_min = now_date.time().minute / 10
 
-    # 8:00 ~ 22:59 是工作时间，不满足工作时间的直接退出
-    if (ts_hour < 8):   # 0-7点直接过滤
+    # 8:00 ~ 23:00 是工作时间，不满足工作时间的直接退出
+    if (ts_hour < 8):
+        return
+    elif (ts_hour == 23) and (ts_min != 0):         # 不是23:00那次直接忽略
         return
 
-    # 每天晚上23:50点，抓取当天的日榜数据
-    if (ts_hour == 23) and (ts_min == 5):
-        new_count, crawl_count, page = crawl_ranking_to_db("all", "day")
-        logging.info("crawl_ranking_to_db() success! get %d/%d (%d pages) illusts" % (new_count, crawl_count, page))
-        return
-
-    # 除了23点，其余的每小时 0, 20, 40 分，推送一张评分最高的图片
-    if (ts_hour != 23) and (ts_min in [0, 2, 4]):
+    # 每小时 0, 20, 40 分，推送一张评分最高的图片
+    if ts_min in [0, 2, 4]:
         illust, tweet = retweet_top_illust()
         logging.info("retweet illust_id=%d [%s] success, tweet_id=%s" % (illust.id, illust.title, tweet.data.id))
+
+
+# KEY_SPIDER - 爬取Pixiv日榜数据
+class RunSpiderDaily(webapp2.RequestHandler):
+  def get(self):
+    AccessFromCronJob = False
+    headers = self.request.headers.items()
+    for key, value in headers:
+        if (key == 'X-Appengine-Cron') and (value == 'true'):
+            AccessFromCronJob = True
+            break
+
+    # 如果不是CronJob来源的请求，记录日志并放弃操作
+    if (not AccessFromCronJob):
+        logging.warn('RunSpiderDaily() access denied!')
+        return
+
+    new_count, crawl_count, page = crawl_ranking_to_db("all", "day")
+    logging.info("crawl_ranking_to_db() success! get %d/%d (%d pages) illusts" % (new_count, crawl_count, page))
+
 
 app = webapp2.WSGIApplication([('/', MainPage),
                                 ('/ranking', ShowLocalRanking),
@@ -201,4 +217,5 @@ app = webapp2.WSGIApplication([('/', MainPage),
                                 ('/crawl_ranking', CrawlRankingToDb),
                                 ('/crawl_ranking_log', CrawlRankingLogToDb),
                                 (KEY_CRONJOB, CronJobMain),
+                                (KEY_SPIDER, RunSpiderDaily),
                                ], debug=True)

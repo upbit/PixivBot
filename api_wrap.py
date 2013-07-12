@@ -71,7 +71,7 @@ def retweet_illust_by_id(illust_id, tag_name="", source="all"):
     try:
         illust = pixiv_api.get_illust(illust_id)
     except Exception, e:
-        logging.warning("pixiv_api.get_illust(%d) error: %s, try" % illust_id)
+        logging.warn("pixiv_api.get_illust(%d) error: %s, try" % (illust_id, e))
         illust = pixiv_api.get_illust(illust_id)
 
     try:
@@ -102,7 +102,11 @@ def retweet_top_illust(source="all"):
     """ 转发当前分数最高的图片 """
     illust_db = IllustHelper(source)
     top_illust = illust_db.GetUnpubIllustsRank(limit_num=1)
-    return retweet_illust_by_id(top_illust.illust_id, tag_name=TWEET_TAG_NAME, source=source)
+    if (top_illust):
+        return retweet_illust_by_id(top_illust.illust_id, tag_name=TWEET_TAG_NAME, source=source)
+    else:
+        logging.warn("retweet_top_illust() but no unpub illust!")
+        return None, None
 
 def disabel_illust_by_id(illust_id):
     illust_db = IllustHelper("all")
