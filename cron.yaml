@@ -2,7 +2,7 @@ cron:
 
 - description: (Cron Job) to execute program
   url: /KEY_aHR0cHM6Ly9naXRodWIuY29tL3VwYml0L1BpeGl2Qm90
-  schedule: every 10 minutes synchronized
+  schedule: every 30 minutes synchronized
   timezone: Asia/Shanghai
 
 - description: crawl pixiv ranking - 14:15
