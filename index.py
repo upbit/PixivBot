@@ -107,7 +107,9 @@ class RetweetIllustById(webapp2.RequestHandler):
         return
 
     illust, tweet = retweet_illust_by_id(illust_id, tag_name=TWEET_TAG_NAME, source=source)
-    self.response.out.write("retweet success! <a href='http://t.qq.com/p/t/%s'>ID=%s</a>" % (tweet.data.id, tweet.data.id))
+    if tweet:
+        self.response.out.write("retweet success! <a href='http://t.qq.com/p/t/%s'>ID=%s</a>" % (tweet.data.id, tweet.data.id))
+        logging.info("retweet illust_id=%d [%s] success, tweet_id=%s" % (illust.id, illust.title, tweet.data.id))
 
 # /disable_illust - 屏蔽一张图片
 class DisableIllustById(webapp2.RequestHandler):
@@ -202,8 +204,8 @@ class CronJobMain(webapp2.RequestHandler):
     elif (ts_hour == 23) and (ts_min != 0):         # 不是23:00那次直接忽略
         return
 
-    # 每半小时，推送一张评分最高的图片
-    if ts_min in [0, 3]:
+    # 满足要求，推送一张评分最高的图片
+    if ts_min in [0, 2, 4]:
         illust, tweet = retweet_top_illust()
         logging.info("retweet illust_id=%d [%s] success, tweet_id=%s" % (illust.id, illust.title, tweet.data.id))
 

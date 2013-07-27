@@ -2,16 +2,21 @@ cron:
 
 - description: (Cron Job) to execute program
   url: /KEY_aHR0cHM6Ly9naXRodWIuY29tL3VwYml0L1BpeGl2Qm90
-  schedule: every 30 minutes synchronized
+  schedule: every 20 minutes synchronized
   timezone: Asia/Shanghai
 
-- description: crawl pixiv ranking - 14:15
+- description: crawl pixiv ranking - 09:53(Japan)
   url: /DAILY_VUdsNGFYWlRjR2xrWlhKZlMwVlpYMU5RU1VSRlVn
-  schedule: every day 14:18
-  timezone: Asia/Shanghai
+  schedule: every day 09:53
+  timezone: Asia/Tokyo
 
-- description: crawl pixiv ranking - 23:50
+- description: crawl pixiv ranking - 15:22(Japan)
   url: /DAILY_VUdsNGFYWlRjR2xrWlhKZlMwVlpYMU5RU1VSRlVn
-  schedule: every day 23:53
-  timezone: Asia/Shanghai
+  schedule: every day 15:22
+  timezone: Asia/Tokyo
+
+- description: crawl pixiv ranking - 23:12(Japan)
+  url: /DAILY_VUdsNGFYWlRjR2xrWlhKZlMwVlpYMU5RU1VSRlVn
+  schedule: every day 23:12
+  timezone: Asia/Tokyo
 

@@ -11,7 +11,7 @@ PIXIV_PASS = ""
 
 TWEET_TAG_NAME = "Pixiv"				# 微博消息前的话题，留空表示不加Tag
 
-RANK_POINT_LIMIT = 5000					# 爬取分数在 RANK_POINT_LIMIT 以上的所有图片
+RANK_POINT_LIMIT = 4000					# 爬取分数在 RANK_POINT_LIMIT 以上的所有图片
 RANK_PAGE_LIMIT = 5 					# 最多翻页 RANK_PAGE_LIMIT 次
 
 # 定时任务入口，可以修改成任意难以猜到的字符串
