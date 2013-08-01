@@ -2,6 +2,8 @@
 
 自动爬取Pixiv日榜数据，并按评分定时推送到微博的机器人。
 
+* [2013-08-01] 更新部署方式，支持从GAE动态调整bot配置
+
 后端使用GAE搭建，用到了[tweibo-pysdk](https://github.com/upbit/tweibo-pysdk)和[pixivpy](https://github.com/upbit/pixivpy)，部署前请参考tweibo-pysdk配置config.py中的ACCESS_TOKEN和OPENID
 
 ***

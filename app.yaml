@@ -1,5 +1,5 @@
-application: yourappname
-version: ranking
+application: pixivranking
+version: beta
 runtime: python27
 api_version: 1
 threadsafe: no
@@ -35,6 +35,16 @@ handlers:
   upload: static/images/(.*\.(gif|png|jpg))
   secure: optional
 
+# admin
+- url: /admin/.*
+  script: index.app
+  login: admin
+
 # Handle request
 - url: /.*
   script: index.app
+
+admin_console:
+  pages:
+  - name: PixivBot Configs
+    url: /admin/setup

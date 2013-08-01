@@ -1,7 +1,7 @@
 ﻿<html>
 <head>
 <meta http-equiv="content-type" content="text/html; charset=utf-8" />
-<title>Local Ranking</title>
+<title>Illust List</title>
 <style>
 * {
 margin: 0px;
@@ -26,6 +26,7 @@ display: block;
 }
 .image_div img{
 float:left;
+border:0px;
 }
 .text_div {
 margin-left: 132px;
@@ -42,7 +43,7 @@ margin-left: 16px;
 <body>
 <div id="context">
 <table border=0>
-{% for db_illust in ranking %}
+{% for db_illust in illust_list %}
 <tr><td>
 <div class="image_div">
 {% if db_illust.tweet_id is valid_tweetid %}
@@ -53,14 +54,14 @@ margin-left: 16px;
     </a>
 {% endif %}
 	<div class="text_div">
-        <span><a href="http://www.pixiv.net/member_illust.php?mode=medium&illust_id={{ db_illust.illust_id }}" target="_blank">标题: [{{ db_illust.title }}]</a></span><BR>
+        <span><a href="http://www.pixiv.net/member_illust.php?mode=medium&illust_id={{ db_illust.key.id() }}" target="_blank">标题: [{{ db_illust.title }}]</a></span><BR>
         <span>发表日期: {{ db_illust.date }}</span><BR>
         <span><a href="http://www.pixiv.net/member.php?id={{ db_illust.author_id }}" target="_blank">作者: [{{ db_illust.author_name }}]</a></span><BR>
         <span>point: {{ db_illust.point }}</span><BR>
         <span>views: {{ db_illust.views }}</span><BR>
         <span>feedback: {{ db_illust.feedback }}</span><BR>
 {% if not db_illust.tweet_id is valid_tweetid %}
-        <span><a href="/retweet_illust?illust_id={{ db_illust.illust_id }}" target="_blank">发表到微博</a>&nbsp;<a href="/disable_illust?illust_id={{ db_illust.illust_id }}" target="_blank">屏蔽该作品</a></span>
+        <span><a href="/retweet_illust?illust_id={{ db_illust.key.id() }}" target="_blank">发表到微博</a>&nbsp;<a href="/disable_illust?illust_id={{ db_illust.key.id() }}" target="_blank">屏蔽该作品</a></span>
 {% endif %}
     </div>
 </div>
@@ -69,9 +70,9 @@ margin-left: 16px;
 <tr><td>
 <div class="page_div">
 {% if page > 0 %}
-<a href="{{ ranking_uri }}page={{ page-1 }}"><<</a>&nbsp;
+<a href="{{ illust_uri }}page={{ page-1 }}"><<</a>&nbsp;
 {% endif %}
-page {{ page }}&nbsp;<a href="{{ ranking_uri }}page={{ page+1 }}">>></a>
+page {{ page }}&nbsp;<a href="{{ illust_uri }}page={{ page+1 }}">>></a>
 </div>
 </td></tr>
 </table>

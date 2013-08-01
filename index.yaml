@@ -10,20 +10,8 @@ indexes:
 # automatically uploaded to the admin console when you next deploy
 # your application using appcfg.py.
 
-- kind: IllustDb
-  properties:
-  - name: tweet_id
-  - name: feedback
-    direction: desc
-
-- kind: IllustDb
+- kind: IllustModel
   properties:
   - name: tweet_id
   - name: point
-    direction: desc
-
-- kind: IllustDb
-  properties:
-  - name: tweet_id
-  - name: views
     direction: desc

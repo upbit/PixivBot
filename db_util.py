@@ -1,107 +1,107 @@
 # -*- coding: utf-8 -*-
 
 import logging
+from datetime import datetime
 from google.appengine.ext import db
+from google.appengine.ext import ndb
 
 conv_utf8 = lambda s: unicode(s, 'utf-8')
 
-## cleanup unpub db
-#
-# from google.appengine.ext import db
-# from db_util import *
-#
-# query = db.GqlQuery("select * from IllustDb where tweet_id=:1", None)
-# results = query.fetch(1000)
-# db.delete(results)
-#
+class BotSetup(ndb.Model):
+  enable_config = ndb.IntegerProperty(default=1)
 
-# Illust存储
-class IllustDb(db.Model):
-    illust_id = db.IntegerProperty()
-    author_id = db.IntegerProperty()
-    title = db.StringProperty(multiline=False)              # 图片标题
-    author_name = db.StringProperty(multiline=False)        # 作者名
-    thumb_url = db.LinkProperty()                           # 缩略图URL
-    date = db.StringProperty(multiline=False)               # 发表时间
+  oauth2_appkey = ndb.StringProperty(default="", indexed=False)
+  oauth2_appsecert = ndb.StringProperty(default="", indexed=False)
+  oauth2_callbackurl = ndb.StringProperty(default="", indexed=False)
+  oauth2_accesstoken = ndb.StringProperty(default="", indexed=False)
+  oauth2_openid = ndb.StringProperty(default="", indexed=False)
 
-    feedback = db.IntegerProperty()
-    point = db.IntegerProperty()
-    views = db.IntegerProperty()
-    bookmark = db.IntegerProperty()
-    recommend = db.IntegerProperty()
+  pixiv_user = ndb.StringProperty(default="", indexed=False)
+  pixiv_pass = ndb.StringProperty(default="", indexed=False)
 
-    tweet_id = db.StringProperty(multiline=False)           # 发表的消息ID
+  rank_point_limit = ndb.IntegerProperty(default=5000, indexed=False)
+  rank_max_page = ndb.IntegerProperty(default=10, indexed=False)
+  tweet_tag_name = ndb.StringProperty(default="Pixiv", indexed=False)
 
-    source = db.StringProperty()                            # 图片来源
-    memo = db.StringProperty(multiline=True)
+  enable_cronjob = ndb.IntegerProperty(default=1, indexed=False)
+  enable_crawljobs = ndb.IntegerProperty(default=1, indexed=False)
+
+  @classmethod
+  def getConfigs(cls):
+    query = ndb.gql("SELECT * FROM BotSetup WHERE enable_config != 0")
+    return query.get()
 
 
-#
+class IllustModel(ndb.Model):
+  """Illust对象, Key为IllustId"""
+  author_id = ndb.IntegerProperty(required=True)
+  author_name = ndb.StringProperty(required=True, indexed=False)
+
+  title = ndb.StringProperty(required=True)
+  thumb_url = ndb.StringProperty(required=True, indexed=False)
+  date = ndb.DateTimeProperty()
+  source = ndb.StringProperty(required=True)
+
+  feedback = ndb.IntegerProperty()
+  point = ndb.IntegerProperty()
+  views = ndb.IntegerProperty()
+
+  tweet_id = ndb.StringProperty(default=None)       # 发表后的微博ID
+
+  @classmethod
+  def create_key(cls, illust_id):
+    """根据illust_id生成key"""
+    return ndb.Key(IllustModel, "%s" % illust_id)
+
+  @classmethod
+  def get_illust(cls, illust_id):
+    return ndb.Key(IllustModel, "%s" % illust_id).get()
+
+
 class IllustHelper():
     def __init__(self, rank_source="all"):
         self.rank_source = rank_source
 
-    def _GetIllust(self, illust_id):
-        """ 根据id查询illust """
-        query = db.GqlQuery("select * from IllustDb where illust_id=:illust_id limit 1", illust_id=illust_id)
-        return query.get()
-
-    def SearchAuthorIllusts(self, author_id):
-        """ 根据id查询author的所有illust """
-        query = db.GqlQuery("select * from IllustDb where author_id=:1", author_id=author_id)
-        return query.run()
-
-    def InsertOrUpdateIllust(self, illust_obj):
-        """ 插入或更新一个illust的信息 """
-        insert_new = 1
-        db_illust = self._GetIllust(illust_obj.id)
-        if (not db_illust):
-            db_illust = IllustDb()
-            db_illust.illust_id = illust_obj.id
-            db_illust.author_id = illust_obj.authorId
-            db_illust.title = conv_utf8(illust_obj.title)
-            db_illust.author_name = conv_utf8(illust_obj.authorName)
-            db_illust.thumb_url = db.Link(illust_obj.thumbURL)
-            db_illust.date = illust_obj.date
+    def update_or_insert(self, illust_obj):
+        db_illust = IllustModel.get_illust(illust_obj.id)
+        if not db_illust:
+            # 对应id的作品不存在，创建新的对象
+            db_illust = IllustModel(key = IllustModel.create_key(illust_obj.id),
+                author_id = illust_obj.authorId,
+                author_name = conv_utf8(illust_obj.authorName),
+                title = conv_utf8(illust_obj.title),
+                thumb_url = illust_obj.thumbURL,
+                date = datetime.strptime(illust_obj.date, "%Y-%m-%d %H:%M:%S"),
+                source = self.rank_source,
+                feedback = illust_obj.feedback,
+                point = illust_obj.point,
+                views = illust_obj.views
+            )
+            exist = 0
+        else:
+            # 已存在作品，更新分值
             db_illust.feedback = illust_obj.feedback
             db_illust.point = illust_obj.point
             db_illust.views = illust_obj.views
-            db_illust.bookmark = 0
-            db_illust.recommend = 0
-            db_illust.tweet_id = None
-            db_illust.source = self.rank_source
-        else: # update illust
-            if (db_illust.feedback < illust_obj.feedback): db_illust.feedback = illust_obj.feedback
-            if (db_illust.point < illust_obj.point): db_illust.point = illust_obj.point
-            if (db_illust.views < illust_obj.views): db_illust.views = illust_obj.views
-            insert_new = 0
-            logging.debug("exist, update illust %d" % (db_illust.illust_id))
-
+            exist = 1
         db_illust.put()
-        return insert_new
+        return exist, db_illust
 
-    def UpdateIllustTweetId(self, illust_id, tweet_id):
-        """ 更新Illust的微博消息id，tweet_id=0表示屏蔽 """
-        db_illust = self._GetIllust(illust_id)
-        if (not db_illust):
-            logging.warn("UpdateTweetId() but illust_id=%d not found!" % (illust_id))
+    def update_illust_tweetid(self, illust_id, tweet_id):
+        db_illust = IllustModel.get_illust(illust_id)
+        if not db_illust:
             return None
         db_illust.tweet_id = str(tweet_id)
-        return db_illust.put()
+        db_illust.put()
+        return db_illust
 
-    def GetUnpubIllustsRank(self, order_by="point", offset=0, limit_num=1):
-        """ 查询排行前N且未发表的illust """
-        query = db.GqlQuery("select * from IllustDb where tweet_id=:1 order by %s desc limit %d,%d" % (order_by, offset, limit_num), None)
-        if (limit_num > 1):
-            return query.run()
+    def get_illusts_by_rank(self, only_unpub=False, order_by="point", offset=0, limit_num=1):
+        if only_unpub:
+            query = ndb.gql("SELECT * FROM IllustModel WHERE tweet_id=:1 ORDER BY %s DESC LIMIT %d,%d" % (order_by, offset, limit_num), None)
         else:
-            return query.get()
-
-    def GetLocalIllustsRank(self, order_by="point", offset=0, limit_num=1):
-        """ 查询本地排行榜(包括已推送) """
-        query = db.GqlQuery("select * from IllustDb order by %s desc limit %d,%d" % (order_by, offset, limit_num))
+            query = ndb.gql("SELECT * FROM IllustModel ORDER BY %s DESC LIMIT %d,%d" % (order_by, offset, limit_num))
         if (limit_num > 1):
-            return query.run()
+            return query.fetch()
         else:
             return query.get()
 
