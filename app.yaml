@@ -1,5 +1,5 @@
-application: pixivranking
-version: beta
+application: yourappname
+version: daily
 runtime: python27
 api_version: 1
 threadsafe: no
