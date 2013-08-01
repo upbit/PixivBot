@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 import urllib2
 import cookielib
 import logging
@@ -44,7 +45,7 @@ def init_pixiv_api(need_login=False):
         logging.info("login pixiv, PHPSESSID: %s" % login_session)
     return pixiv_api
 
-def download_illust(image_obj, mobile=False, headers=None):
+def download_illust(image_obj, mobile=False, page=0, headers=None):
     """ 伪装并下载指定illust """
     req_headers = headers or [
         ('Referer', image_obj.url),
@@ -54,16 +55,23 @@ def download_illust(image_obj, mobile=False, headers=None):
     opener = urllib2.build_opener()
     opener.addheaders = req_headers
     if (not mobile):
-        logging.debug("download_illust(%s)" % image_obj.imageURL)
-        return opener.open(image_obj.imageURL)
+        if (image_obj.pages > 0):
+            try:
+                image_URL = image_obj.pageURL[page]
+            except:
+                image_URL = image_obj.imageURL
+        else:
+            image_URL = image_obj.imageURL
     else:
-        logging.debug("download_illust(%s)" % image_obj.mobileURL)
-        return opener.open(image_obj.mobileURL)
+        image_URL = image_obj.mobileURL
+
+    logging.debug("download_illust(%s)" % (image_URL))
+    return opener.open(image_URL)
 
 def retweet_illust_by_id(illust_id, tag_name="", source="all"):
     """ 根据illust_id转发一张图片 """
     if (long(illust_id) <= 0):
-        return None
+        return None, None
 
     api = init_tweibo_api()
     pixiv_api = init_pixiv_api()
@@ -71,25 +79,95 @@ def retweet_illust_by_id(illust_id, tag_name="", source="all"):
     try:
         illust = pixiv_api.get_illust(illust_id)
     except Exception, e:
-        logging.warning("pixiv_api.get_illust(%d) error: %s, try" % illust_id)
+        logging.warn("pixiv_api.get_illust(%d) error: %s, retry" % (illust_id, e))
         illust = pixiv_api.get_illust(illust_id)
 
-    try:
-        # 先尝试上传原始图片
-        upload_illust = api.upload.t__upload_pic(format="json", pic_type=2, pic=download_illust(illust))
-    except Exception, e: # [To-Do] 加入失败原因判断
-        # 如果失败(一般是图片太大)，尝试上传移动端的图片
-        logging.error("api.upload.t__upload_pic() error: %s, try upload mobile pic" % e)
-        upload_illust = api.upload.t__upload_pic(format="json", pic_type=2, pic=download_illust(illust, mobile=True))
-    
-    #illust_tag = ", ".join(illust.tags.split(" "))
-    if (tag_name != ""):
-        content_text = "#%s# [%s] / [%s] illust_id=%s %s" % (tag_name, illust.title, illust.authorName, illust.id, illust.url)
-    else:
-        content_text = "[%s] / [%s] illust_id=%s %s" % (illust.title, illust.authorName, illust.id, illust.url)
+    if not illust:
+        # 因为种种原因pixiv没有返回数据，屏蔽该作品
+        logging.warn("pixiv_api.get_illust(%d) return None, illust maybe deleted." % (illust_id))
+        disabel_illust_by_id(illust_id)
+        return None, None
 
-    logging.debug("send tweet: '%s', imgurl=%s" % (content_text, upload_illust.data.imgurl))
-    tweet = api.post.t__add_pic_url(format="json", content=content_text, pic_url=upload_illust.data.imgurl, clientip="10.0.0.1")
+    retry_num = 2           # 最多重试2次
+    size_error = False
+    if (illust.pages == 0):
+        while (retry_num > 0):
+            # 先尝试上传原始图片
+            try:
+                upload_illust = api.upload.t__upload_pic(format="json", pic_type=2, pic=download_illust(illust))
+                retry_num = 0
+                break           # 上传成功后退出
+            except TWeiboError, e:
+                if e.result:
+                    if (int(e.result.errcode) == 9) and (e.result.ret == 1):
+                        # 如果失败原因是(errcode=9, ret=1, msg:error pic size)，尝试上传移动端的图片
+                        logging.warn("api.upload.t__upload_pic() error: %s, try upload mobile pic" % e)
+                        upload_illust = api.upload.t__upload_pic(format="json", pic_type=2, pic=download_illust(illust, mobile=True))
+                        size_error = True
+                        break
+
+                retry_num -= 1
+                time.sleep(3.1)
+                logging.error("api.upload.t__upload_pic() error: %s, retry last %d" % (e, retry_num))
+
+
+        if (tag_name != ""):
+            content_text = "#%s# [%s] / [%s] illust_id=%s %s" % (tag_name, illust.title, illust.authorName, illust.id, illust.url)
+        else:
+            content_text = "[%s] / [%s] illust_id=%s %s" % (illust.title, illust.authorName, illust.id, illust.url)
+        if size_error:
+            content_text += " (mobile size)"
+
+        try:
+            tweet = api.post.t__add_pic_url(format="json", content=content_text, pic_url=upload_illust.data.imgurl, clientip="10.0.0.1")
+        except TWeiboError, e:
+            logging.error("api.post.t__add_pic_url(%s) error: %s, retry" % (upload_illust.data.imgurl, e))
+            if e.body: logging.error("http body: %s" % e.body)
+            time.sleep(1.2)
+            tweet = api.post.t__add_pic_url(format="json", content=content_text, pic_url=upload_illust.data.imgurl, clientip="10.0.0.1")
+
+        logging.debug("send tweet: '%s', imgurl=%s" % (content_text, upload_illust.data.imgurl))
+
+    else:
+        # 有多张时，抓取前4张图片(太多可能因为超时被GAE终止)
+        page_url = []
+
+        size_error = False
+        for i in range(illust.pages):
+            if (i >= 4): break
+
+            try:
+                # 上传 page(i) 的图像
+                upload_illust = api.upload.t__upload_pic(format="json", pic_type=2, pic=download_illust(illust, page=i))
+                page_url.append(upload_illust.data.imgurl)
+
+            except Exception, e: # [To-Do] 加入失败原因判断
+                # 如果失败(一般是图片太大)，尝试上传移动端的图片
+                if len(page_url) == 0:
+                    logging.error("api.upload.t__upload_pic() error: %s, try upload mobile pic" % e)
+                    upload_illust = api.upload.t__upload_pic(format="json", pic_type=2, pic=download_illust(illust, mobile=True))
+                    page_url.append(upload_illust.data.imgurl)
+                else:
+                    logging.error("api.upload.t__upload_pic(mutipage=%d) error: %s, break with pics: %s" % (i, e, page_url))
+                size_error = True
+                break
+
+        if (tag_name != ""):
+            content_text = "#%s# [%s] / [%s] illust_id=%s %s" % (tag_name, illust.title, illust.authorName, illust.id, illust.url)
+        else:
+            content_text = "[%s] / [%s] illust_id=%s %s" % (illust.title, illust.authorName, illust.id, illust.url)
+        if size_error:
+            content_text += " (mobile size)"
+
+        try:
+            tweet = api.post.t__add_pic_url(format="json", content=content_text, pic_url=",".join(page_url), clientip="10.0.0.1")
+        except TWeiboError, e:
+            logging.error("api.post.t__add_pic_url(%s) error: %s, retry" % (",".join(page_url), e))
+            if e.body: logging.error("http body: %s" % e.body)
+            time.sleep(1.2)
+            tweet = api.post.t__add_pic_url(format="json", content=content_text, pic_url=",".join(page_url), clientip="10.0.0.1")
+
+        logging.debug("send tweet: '%s', pageurl=%s" % (content_text, ",".join(page_url)))
 
     # 将推送过的图片记录到DB
     illust_db = IllustHelper(source)
@@ -102,7 +180,19 @@ def retweet_top_illust(source="all"):
     """ 转发当前分数最高的图片 """
     illust_db = IllustHelper(source)
     top_illust = illust_db.GetUnpubIllustsRank(limit_num=1)
-    return retweet_illust_by_id(top_illust.illust_id, tag_name=TWEET_TAG_NAME, source=source)
+    if (top_illust):
+        return retweet_illust_by_id(top_illust.illust_id, tag_name=TWEET_TAG_NAME, source=source)
+    else:
+        logging.warn("retweet_top_illust() but no unpub illust!")
+        return None, None
+
+def add_db_illust_by_id(illust_id):
+    pixiv_api = init_pixiv_api()
+    illust_db = IllustHelper("all")
+
+    illust = pixiv_api.get_illust(illust_id)
+    exist = illust_db.InsertOrUpdateIllust(illust)
+    return exist, illust
 
 def disabel_illust_by_id(illust_id):
     illust_db = IllustHelper("all")

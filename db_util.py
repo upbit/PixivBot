@@ -104,3 +104,4 @@ class IllustHelper():
             return query.run()
         else:
             return query.get()
+
