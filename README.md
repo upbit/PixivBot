@@ -7,4 +7,9 @@
 后端使用GAE搭建，用到了[tweibo-pysdk](https://github.com/upbit/tweibo-pysdk)和[pixivpy](https://github.com/upbit/pixivpy)，部署前请参考tweibo-pysdk配置config.py中的ACCESS_TOKEN和OPENID
 
 ***
+
 部署与示例请参考[Wiki](https://github.com/upbit/PixivBot/wiki)
+
+-----------
+
+项目演示：[Pixiv日榜搬运姬(@pixivbot)](http://t.qq.com/pixivbot) / [搬运姬Zwei(@pixivhime)](http://t.qq.com/pixivhime)
