@@ -93,9 +93,10 @@ def retweet_illust_by_id(illust_id, tag_name="", source="all"):
     size_error = False
     if (illust.pages == 0):
         while (retry_num > 0):
-            # 先尝试上传原始图片
+            # Pixiv升级API，现在SAPI只能获取到mobile的图片了
+            size_error = True
             try:
-                upload_illust = api.upload.t__upload_pic(format="json", pic_type=2, pic=download_illust(illust))
+                upload_illust = api.upload.t__upload_pic(format="json", pic_type=2, pic=download_illust(illust, mobile=True))
                 retry_num = 0
                 break           # 上传成功后退出
             except TWeiboError, e:
